@@ -1,13 +1,14 @@
 <?php
-class Jetpack_Onboarding_EndPoints {
+class Jetpack_Onboarding_EndPoints { 
 	const AJAX_NONCE = 'jpo-ajax';
 	const STEP_STATUS_KEY = 'jpo_step_statuses';
 	const FIRSTRUN_KEY = 'jpo_firstrun';
 	const STARTED_KEY = 'jpo_started';
+	const DISABLED_KEY = 'jpo_disabled';
 	const CONTACTPAGE_ID_KEY = 'jpo_contactpage_id';
 	const MAX_THEMES = 3;
 	const NUM_RAND_THEMES = 3;
-	const VERSION = "1.3";
+	const VERSION = "1.1";
 
 	//static $default_themes = array( 'writr', 'flounder', 'sorbet', 'motif', 'hexa', 'twentyfourteen', 'twentytwelve', 'responsive', 'bushwick', 'singl', 'tonal', 'fontfolio', 'hemingway-rewritten', 'skylark' , 'twentythirteen' , 'twentyeleven' );
 	static $themes;
@@ -35,7 +36,6 @@ class Jetpack_Onboarding_EndPoints {
 			add_action( 'wp_ajax_jpo_step_complete', array( __CLASS__, 'step_complete' ) );
 			add_action( 'wp_ajax_jpo_started', array( __CLASS__, 'started' ) );
 			add_action( 'wp_ajax_jpo_disabled', array( __CLASS__, 'disabled' ) );
-			add_action( 'wp_ajax_jpo_closed', array( __CLASS__, 'closed' ) );
 			add_action( 'wp_ajax_jpo_reset_data', array( __CLASS__, 'reset_data' ) );
 		}
 	}
@@ -103,7 +103,6 @@ class Jetpack_Onboarding_EndPoints {
 			'step_actions' => array(
 				'start' => 'jpo_started',
 				'disable' => 'jpo_disabled',
-				'close' => 'jpo_closed',
 				'view' => 'jpo_step_view',
 				'skip' => 'jpo_step_skip',
 				'complete' => 'jpo_step_complete'
@@ -173,7 +172,7 @@ class Jetpack_Onboarding_EndPoints {
 		if ( is_wp_error( $themes )) {
 			wp_send_json_error("There was an error loading themes: ".$themes->get_error_message());
 			die();
-		}
+		} 
 		$non_installed_themes = array_filter($themes->themes, array(__CLASS__, 'existing_theme_filter'));
 		$rand_keys_to_exclude = array_rand( $non_installed_themes, ( sizeof($non_installed_themes) - self::NUM_RAND_THEMES ) );
 
@@ -182,7 +181,7 @@ class Jetpack_Onboarding_EndPoints {
 
 
 		// error_log(print_r($random_non_installed_themes, true));
-
+		
 		wp_send_json_success( array_map( array(__CLASS__, 'normalize_api_theme'), array_values( $random_non_installed_themes ) ) );
 	}
 
@@ -221,7 +220,7 @@ class Jetpack_Onboarding_EndPoints {
 
 	static function activate_jetpack_modules() {
 		check_ajax_referer( self::AJAX_NONCE, 'nonce' );
-
+		
 		// shamelessly copied from class.jetpack.php
 		$modules = $_REQUEST['modules'];
 		$modules = array_map( 'sanitize_key', $modules );
@@ -241,7 +240,7 @@ class Jetpack_Onboarding_EndPoints {
 
 	static function deactivate_jetpack_modules() {
 		check_ajax_referer( self::AJAX_NONCE, 'nonce' );
-
+		
 		// shamelessly copied from class.jetpack.php
 		$modules = $_REQUEST['modules'];
 		$modules = array_map( 'sanitize_key', $modules );
@@ -322,50 +321,15 @@ class Jetpack_Onboarding_EndPoints {
 	static function started() {
 		check_ajax_referer( self::AJAX_NONCE, 'nonce' );
 		update_option( self::STARTED_KEY, true );
-		do_action('jpo_started', $_REQUEST['siteType']);
+		do_action('jpo_started');
 		wp_send_json_success( 'true' );
 	}
 
-	// These next two functions are the same,
-	// but the first == "NO" on opening screen,
-	// whereas the second happens if you close the metabox
 	static function disabled() {
 		check_ajax_referer( self::AJAX_NONCE, 'nonce' );
-		self::hide_dashboard_widget();
+		update_option( self::DISABLED_KEY, true );
 		do_action('jpo_disabled');
 		wp_send_json_success( 'true' );
-	}
-
-	static function closed() {
-		check_ajax_referer( self::AJAX_NONCE, 'nonce' );
-		self::hide_dashboard_widget();
-		wp_send_json_success( 'true' );
-	}
-
-	static function hide_dashboard_widget() {
-		$setting = get_user_option( get_current_user_id(), "metaboxhidden_dashboard" );
-
-		if ( !$setting || !is_array( $setting ) ) {
-			$setting = array();
-		}
-
-		if ( ! in_array( Jetpack_Onboarding_WelcomePanel::DASHBOARD_WIDGET_ID, $setting ) ) {
-			$setting[] = Jetpack_Onboarding_WelcomePanel::DASHBOARD_WIDGET_ID;
-			update_user_option( get_current_user_id(), "metaboxhidden_dashboard", $setting, true);
-		}
-	}
-
-	static function show_dashboard_widget() {
-		$setting = get_user_option( get_current_user_id(), "metaboxhidden_dashboard" );
-
-		if ( !$setting || !is_array( $setting ) ) {
-			$setting = array();
-		}
-
-		if ( in_array( Jetpack_Onboarding_WelcomePanel::DASHBOARD_WIDGET_ID, $setting ) ) {
-			$setting = array_diff( $setting, array(Jetpack_Onboarding_WelcomePanel::DASHBOARD_WIDGET_ID) );
-			update_user_option( get_current_user_id(), "metaboxhidden_dashboard", $setting, true);
-		}
 	}
 
 	static function step_view() {
@@ -398,9 +362,9 @@ class Jetpack_Onboarding_EndPoints {
 
 	static function update_step_status($step, $field, $value) {
 		$step_statuses = get_option( self::STEP_STATUS_KEY, array() );
-
+		
 		if( ! array_key_exists( $step, $step_statuses ) ) {
-			$step_statuses[$step] = array();
+			$step_statuses[$step] = array();	
 		}
 
 		$step_statuses[$step][$field] = $value;
@@ -416,7 +380,7 @@ class Jetpack_Onboarding_EndPoints {
 
 		$updated_title = get_option( 'blogname' ) === $title || update_option( 'blogname', $title );
 		$updated_description = get_option( 'blogdescription' ) === $description || update_option( 'blogdescription', $description );
-
+		
 		if ( $updated_title && $updated_description ) {
 			wp_send_json_success( $title );
 		} else {
@@ -491,7 +455,7 @@ Warwick, RI 02889
  			wp_send_json_error('Theme does not exist: '.$theme_id);
  			die();
 		}
-
+		
 		if ( ! $theme->is_allowed() ) {
 			wp_send_json_error('Action not permitted for '.$theme_id);
 			die();
@@ -509,10 +473,10 @@ Warwick, RI 02889
 		if ( ! $theme->exists() ) {
 			include_once( ABSPATH . 'wp-admin/includes/class-wp-upgrader.php' );
 			include_once( ABSPATH . 'wp-admin/includes/theme-install.php' );
-
+			
 			$theme_info = themes_api( 'theme_information', array(
-				'slug' => $theme_id,
-				'fields' => array( 'sections' => false, 'tags' => false )
+				'slug' => $theme_id, 
+				'fields' => array( 'sections' => false, 'tags' => false ) 
 			) );
 
 			error_log(print_r($theme_info, true));
@@ -531,7 +495,7 @@ Warwick, RI 02889
 					wp_send_json_error('Could not install theme (unspecified server error)');
 					die();
 				}
-			}
+			} 
 		}
 
 		wp_send_json_success( $theme_id );
@@ -572,18 +536,16 @@ Warwick, RI 02889
 
 			if ( JETPACK_STEP_AUTO_REDIRECT ) {
 				$connect_url = add_query_arg( 'src', JETPACK_STEP_AUTO_REDIRECT_SRC, $connect_url );
+				$connect_url = add_query_arg( 'host', 'bluehost', $connect_url );
+				$connect_url = add_query_arg( 'from', 'jpo', $connect_url );
 			}
-
-			$connect_url = add_query_arg( 'host', JETPACK_ONBOARDING_VENDOR_CODE, $connect_url );
-			$connect_url = add_query_arg( 'product', JETPACK_ONBOARDING_PRODUCT_CODE, $connect_url );
-			$connect_url = add_query_arg( 'from', 'jpo', $connect_url );
 
 			wp_send_json_success( array('next' => $connect_url) );
 		} else {
 			wp_send_json_success( 'already_active' );
 		}
 
-
+		
 	}
 
 	static function set_layout_to_website() {

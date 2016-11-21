@@ -31,18 +31,19 @@ function mm_buy_now() {
 			} else {
 				$pending_transactions = array( $order->order->Order->id );
 			}
-			set_transient( 'mm_pending_transaction', $pending_transactions, DAY_IN_SECONDS * 7 );
-			$checkout_type = 'paypal';
+			set_transient( 'mm_pending_transaction', $pending_transactions, DAY_IN_SECONDS );
 		}
 		echo json_encode( $order );
+		$checkout_type = 'paypal';
 	} else {
 		echo '{"status":"error","error":"Unable to process order."}';
+		$checkout_type = 'mojo';
 	}
 	$event = array(
 		't'     => 'event',
 		'ec'    => 'user_action',
 		'ea'    => 'checkout_type',
-		'el'    => ( isset( $checkout_type ) ) ? $checkout_type : 'mojo',
+		'el'    => $checkout_type,
 	);
 	mm_ux_log( $event );
 	die;
@@ -59,22 +60,16 @@ function mm_record_transaction( $item ) {
 	}
 	if ( property_exists( $order, 'id' ) && in_array( $order->id, $pending_transactions ) ) {
 		$transaction = array(
-			't'  => 'transaction',
 			'ti' => $order->id,
 			'ta' => get_option( 'mm_master_aff', '' ),
 			'tr' => $order->order_total,
-			'cu' => 'USD',
-		);
-		mm_ux_log( $transaction );
-		$item = array(
-			't' => 'item',
 			'in' => $item->name,
-			'ip' => $item->prices->single_domain_license,
+			'ip' => $order->order_total,
 			'iq' => $item->sales_count,
 			'ic' => $item->id,
 			'iv' => $item->type,
+			'cu' => 'USD',
 		);
-		mm_ux_log( $item );
 		$key = array_search( $order->id, $pending_transactions );
 		unset( $pending_transactions[ $key ] );
 		if ( ! empty( $pending_transactions ) ) {
